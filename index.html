@@ -185,14 +185,12 @@
                     <input type="text" id="itemCode" placeholder="Enter item code">
                 </div>
                 <div>
-                    <label for="itemCount">Count:</label>
-                    <input type="text" id="itemCount" placeholder="Enter count (e.g., 10, 5pcs)">
+                    <label for="itemCount">Value:</label> <input type="text" id="itemCount" placeholder="Enter value (e.g., 10, 5pcs)">
                 </div>
                 <div>
                     <label for="itemUnit">Unit:</label>
                     <select id="itemUnit">
-                        <option value="count">Count</option>
-                        <option value="metres">Metres</option>
+                        <option value="each">Each</option> <option value="metres">Metres</option>
                     </select>
                 </div>
                 <button onclick="addItem()" class="add-btn">Add Item</button>
@@ -204,8 +202,7 @@
             <thead>
                 <tr>
                     <th>Code</th>
-                    <th>Count</th>
-                    <th>Unit</th>
+                    <th>Value</th> <th>Unit</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -219,7 +216,7 @@
         let stockItems = [];
         let currentEditingId = null;
         const itemCodeInput = document.getElementById('itemCode');
-        const itemCountInput = document.getElementById('itemCount');
+        const itemCountInput = document.getElementById('itemCount'); // This is now 'Value'
         const itemUnitInput = document.getElementById('itemUnit');
         const tableBody = document.getElementById('stockTable').getElementsByTagName('tbody')[0];
         const sessionNameInput = document.getElementById('sessionName');
@@ -252,7 +249,11 @@
             try {
                 const data = localStorage.getItem(getSessionKey());
                 if (data) {
-                    stockItems = JSON.parse(data);
+                    // Migrate old 'count' unit to 'each' and ensure default is 'each'
+                    stockItems = JSON.parse(data).map(item => ({
+                        ...item,
+                        unitType: item.unitType === 'count' ? 'each' : (item.unitType || 'each')
+                    }));
                 } else {
                     stockItems = [];
                 }
@@ -269,7 +270,7 @@
                 displayMessage("Please enter a session name to load.", "error");
                 return;
             }
-            loadData(); // loadData uses the current value in sessionNameInput
+            loadData(); 
             displayMessage(`Session '${sessionNameInput.value}' loaded.`, "success");
         }
 
@@ -277,18 +278,18 @@
             const newName = prompt("Enter a name for the new session:");
             if (newName && newName.trim()) {
                 sessionNameInput.value = newName.trim();
-                stockItems = []; // Clear current items
-                saveData(); // Save the empty state for the new session
+                stockItems = []; 
+                saveData(); 
                 renderTable();
                 displayMessage(`Switched to new session: '${newName.trim()}'.`, "success");
-            } else if (newName !== null) { // Only show error if prompt was not cancelled
+            } else if (newName !== null) { 
                  displayMessage("New session name cannot be empty.", "error");
             }
         }
 
 
         function renderTable() {
-            tableBody.innerHTML = ''; // Clear existing rows
+            tableBody.innerHTML = ''; 
 
             if (stockItems.length === 0) {
                 const row = tableBody.insertRow();
@@ -305,15 +306,15 @@
                 if (currentEditingId === item.id) {
                     // Editing mode
                     row.insertCell().innerHTML = `<input type="text" value="${item.code}" id="editCode-${item.id}">`;
-                    row.insertCell().innerHTML = `<input type="text" value="${item.count}" id="editCount-${item.id}">`;
+                    row.insertCell().innerHTML = `<input type="text" value="${item.itemValue}" id="editItemValue-${item.id}">`; // Changed from count to itemValue
                     const unitCell = row.insertCell();
                     const unitSelect = document.createElement('select');
                     unitSelect.id = `editUnit-${item.id}`;
-                    ['count', 'metres'].forEach(u => {
+                    ['each', 'metres'].forEach(u => { // Changed 'count' to 'each'
                         const option = document.createElement('option');
                         option.value = u;
                         option.text = u.charAt(0).toUpperCase() + u.slice(1);
-                        if (u === item.unitType) option.selected = true;
+                        if (u === (item.unitType || 'each')) option.selected = true; // Default to 'each'
                         unitSelect.appendChild(option);
                     });
                     unitCell.appendChild(unitSelect);
@@ -327,8 +328,8 @@
                 } else {
                     // Display mode
                     row.insertCell().textContent = item.code;
-                    row.insertCell().textContent = item.count; // Store count as string, display as is
-                    row.insertCell().textContent = item.unitType || 'count';
+                    row.insertCell().textContent = item.itemValue; // Changed from count to itemValue
+                    row.insertCell().textContent = item.unitType || 'each'; // Default display to 'each'
 
                     const actionsCell = row.insertCell();
                     actionsCell.classList.add('actions-cell');
@@ -342,46 +343,37 @@
 
         function addItem() {
             const code = itemCodeInput.value.trim();
-            const count = itemCountInput.value.trim(); // Keep as string for flexibility (e.g. "5pcs")
+            const itemValue = itemCountInput.value.trim(); // This is the 'Value' field now
             const unit = itemUnitInput.value;
 
-            // Validate count for non-negativity if it's purely numeric
-            const numericCount = parseInt(count, 10);
-            if (!code || !count) {
-                displayMessage("Code and Count cannot be empty.", "error");
+            const numericValue = parseInt(itemValue, 10);
+            if (!code || !itemValue) {
+                displayMessage("Code and Value cannot be empty.", "error");
                 return;
             }
-            if (!isNaN(numericCount) && numericCount < 0) {
-                 displayMessage("Numeric count cannot be negative.", "error");
+            if (!isNaN(numericValue) && numericValue < 0) {
+                 displayMessage("Numeric value cannot be negative.", "error");
                  return;
             }
 
-
-            // Check if item with same code and unit exists to update count
             const existingItemIndex = stockItems.findIndex(item => item.code === code && item.unitType === unit);
 
             if (existingItemIndex !== -1) {
-                // Try to add counts if both are numeric
-                const existingNumericCount = parseInt(stockItems[existingItemIndex].count, 10);
-                if (!isNaN(numericCount) && !isNaN(existingNumericCount)) {
-                    stockItems[existingItemIndex].count = (existingNumericCount + numericCount).toString();
-                    displayMessage(`Updated count for '${code}'.`, "success");
+                const existingNumericValue = parseInt(stockItems[existingItemIndex].itemValue, 10);
+                if (!isNaN(numericValue) && !isNaN(existingNumericValue)) {
+                    stockItems[existingItemIndex].itemValue = (existingNumericValue + numericValue).toString();
+                    displayMessage(`Updated value for '${code}'.`, "success");
                 } else {
-                    // If one or both are not purely numeric, append or just update as a string.
-                    // This behavior might need refinement based on exact needs for non-numeric counts.
-                    // For now, we'll overwrite if a numeric count is added to a non-numeric one, or append if both are text.
-                    // Simplified: just update the count with the new value if not adding numerics
-                    stockItems[existingItemIndex].count = count; // Or a more complex logic: `stockItems[existingItemIndex].count += ", " + count;`
-                    displayMessage(`Updated (non-numeric) count for '${code}'.`, "success");
+                    stockItems[existingItemIndex].itemValue = itemValue; 
+                    displayMessage(`Updated (non-numeric) value for '${code}'.`, "success");
                 }
             } else {
-                 // Add new item with a unique ID (timestamp based for simplicity)
-                stockItems.push({ id: Date.now(), code, count, unitType: unit });
+                stockItems.push({ id: Date.now(), code, itemValue, unitType: unit }); // Storing as itemValue
                 displayMessage(`Added item: ${code}.`, "success");
             }
             
             itemCodeInput.value = '';
-            itemCountInput.value = '';
+            itemCountInput.value = ''; // Clear the 'Value' input
             itemCodeInput.focus();
             saveData();
             renderTable();
@@ -400,20 +392,20 @@
         function saveEdit(index) {
             const item = stockItems[index];
             const newCode = document.getElementById(`editCode-${item.id}`).value.trim();
-            const newCount = document.getElementById(`editCount-${item.id}`).value.trim();
+            const newItemValue = document.getElementById(`editItemValue-${item.id}`).value.trim(); // Changed from editCount
             const newUnit = document.getElementById(`editUnit-${item.id}`).value;
             
-            const numericNewCount = parseInt(newCount, 10);
-            if (!newCode || !newCount) {
-                displayMessage("Code and Count cannot be empty when editing.", "error");
+            const numericNewValue = parseInt(newItemValue, 10);
+            if (!newCode || !newItemValue) {
+                displayMessage("Code and Value cannot be empty when editing.", "error");
                 return;
             }
-            if (!isNaN(numericNewCount) && numericNewCount < 0) {
-                 displayMessage("Numeric count cannot be negative.", "error");
+            if (!isNaN(numericNewValue) && numericNewValue < 0) {
+                 displayMessage("Numeric value cannot be negative.", "error");
                  return;
             }
 
-            stockItems[index] = { ...item, code: newCode, count: newCount, unitType: newUnit };
+            stockItems[index] = { ...item, code: newCode, itemValue: newItemValue, unitType: newUnit }; // Saving as itemValue
             currentEditingId = null;
             saveData();
             renderTable();
@@ -435,16 +427,15 @@
                 return;
             }
             const dataToExport = stockItems.map(item => {
-                // Attempt to parse count for Excel, but keep original if not purely numeric
-                let displayCount = item.count;
-                const numericCount = parseInt(item.count, 10);
-                if (!isNaN(numericCount) && numericCount.toString() === item.count) {
-                    displayCount = numericCount;
+                let displayValue = item.itemValue; // Using itemValue
+                const numericValue = parseInt(item.itemValue, 10);
+                if (!isNaN(numericValue) && numericValue.toString() === item.itemValue) {
+                    displayValue = numericValue;
                 }
                 return {
                     Code: item.code,
-                    Count: displayCount,
-                    Unit: item.unitType || 'count'
+                    Value: displayValue, // Changed from Count to Value
+                    Unit: item.unitType || 'each' // Default to 'each'
                 };
             });
 
@@ -457,7 +448,6 @@
             displayMessage("Data exported to XLSX.", "success");
         }
 
-        // Event listener for Enter key on input fields
         itemCodeInput.addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
                 event.preventDefault();
@@ -478,10 +468,8 @@
             }
         });
 
-
-        // Initial load
         window.onload = () => {
-            loadData(); // Load data for the default or last used session
+            loadData(); 
             if (stockItems.length > 0){
                  displayMessage(`Session '${sessionNameInput.value}' loaded.`, "success");
             } else {
