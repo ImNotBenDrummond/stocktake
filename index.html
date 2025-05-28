@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stocktake Manager (Single File)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .message-box {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .message-box.success {
+            background-color: #e6ffed;
+            color: #2f855a;
+        }
+        .message-box.error {
+            background-color: #ffe6e6;
+            color: #c53030;
+        }
+        .input-section, .session-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+        }
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .input-group > div {
+            flex: 1 1 150px; /* Grow, shrink, basis */
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 18px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button.add-btn {
+            background-color: #2ecc71;
+        }
+        button.add-btn:hover {
+            background-color: #27ae60;
+        }
+        button.export-btn {
+            background-color: #1abc9c;
+            margin-top:10px;
+        }
+        button.export-btn:hover {
+            background-color: #16a085;
+        }
+        button.delete-btn, button.cancel-btn {
+            background-color: #e74c3c;
+            margin-left: 5px;
+        }
+        button.delete-btn:hover, button.cancel-btn:hover {
+            background-color: #c0392b;
+        }
+        button.edit-btn, button.save-btn {
+            background-color: #f39c12;
+            margin-right: 5px;
+        }
+         button.edit-btn:hover, button.save-btn:hover {
+            background-color: #e67e22;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #ecf0f1;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        td input[type="text"], td select {
+            padding: 6px;
+            font-size: 0.95em;
+        }
+        .actions-cell {
+            white-space: nowrap;
+        }
+        .responsive-flex-group {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .responsive-flex-group > div {
+            flex: 1;
+            min-width: 150px; /* Ensure inputs don't get too squished */
+        }
+        .responsive-flex-group > button {
+             align-self: flex-end;
+             margin-bottom:0px; /* Align with input bottom padding */
+        }
+        @media (max-width: 600px) {
+            .input-group > div {
+                flex-basis: 100%; /* Stack inputs on small screens */
+            }
+            .responsive-flex-group > button {
+                width:100%;
+                margin-top:10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Stocktake Manager (Single File)</h1>
+        <div id="messageBox" class="message-box" style="display: none;"></div>
+
+        <div class="session-section">
+            <h2>Session Management</h2>
+            <div class="input-group">
+                <div>
+                    <label for="sessionName">Session Name:</label>
+                    <input type="text" id="sessionName" value="default_stocktake">
+                </div>
+                 <button onclick="loadSession()">Load Session</button>
+                 <button onclick="newSession()">New Session</button>
+            </div>
+            <p style="font-size:0.8em; color: #555;">Data is saved in your browser's Local Storage under this session name.</p>
+        </div>
+
+        <div class="input-section">
+            <h2>Add Item</h2>
+            <div class="responsive-flex-group">
+                <div>
+                    <label for="itemCode">Code:</label>
+                    <input type="text" id="itemCode" placeholder="Enter item code">
+                </div>
+                <div>
+                    <label for="itemCount">Count:</label>
+                    <input type="text" id="itemCount" placeholder="Enter count (e.g., 10, 5pcs)">
+                </div>
+                <div>
+                    <label for="itemUnit">Unit:</label>
+                    <select id="itemUnit">
+                        <option value="count">Count</option>
+                        <option value="metres">Metres</option>
+                    </select>
+                </div>
+                <button onclick="addItem()" class="add-btn">Add Item</button>
+            </div>
+        </div>
+
+        <h2>Stock Items</h2>
+        <table id="stockTable">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Count</th>
+                    <th>Unit</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+        <button onclick="exportToXLSX()" class="export-btn">Export to XLSX</button>
+    </div>
+
+    <script>
+        let stockItems = [];
+        let currentEditingId = null;
+        const itemCodeInput = document.getElementById('itemCode');
+        const itemCountInput = document.getElementById('itemCount');
+        const itemUnitInput = document.getElementById('itemUnit');
+        const tableBody = document.getElementById('stockTable').getElementsByTagName('tbody')[0];
+        const sessionNameInput = document.getElementById('sessionName');
+        const messageBox = document.getElementById('messageBox');
+
+        function displayMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type}`;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        function getSessionKey() {
+            const sessionName = sessionNameInput.value.trim();
+            return sessionName ? `stocktake_${sessionName}` : 'stocktake_default_stocktake';
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(getSessionKey(), JSON.stringify(stockItems));
+            } catch (e) {
+                console.error("Error saving to Local Storage:", e);
+                displayMessage("Error saving data. Local Storage might be full or disabled.", "error");
+            }
+        }
+
+        function loadData() {
+            try {
+                const data = localStorage.getItem(getSessionKey());
+                if (data) {
+                    stockItems = JSON.parse(data);
+                } else {
+                    stockItems = [];
+                }
+            } catch (e) {
+                console.error("Error loading from Local Storage:", e);
+                stockItems = [];
+                displayMessage("Error loading data. Previous data might be corrupted.", "error");
+            }
+            renderTable();
+        }
+        
+        function loadSession() {
+            if (!sessionNameInput.value.trim()){
+                displayMessage("Please enter a session name to load.", "error");
+                return;
+            }
+            loadData(); // loadData uses the current value in sessionNameInput
+            displayMessage(`Session '${sessionNameInput.value}' loaded.`, "success");
+        }
+
+        function newSession() {
+            const newName = prompt("Enter a name for the new session:");
+            if (newName && newName.trim()) {
+                sessionNameInput.value = newName.trim();
+                stockItems = []; // Clear current items
+                saveData(); // Save the empty state for the new session
+                renderTable();
+                displayMessage(`Switched to new session: '${newName.trim()}'.`, "success");
+            } else if (newName !== null) { // Only show error if prompt was not cancelled
+                 displayMessage("New session name cannot be empty.", "error");
+            }
+        }
+
+
+        function renderTable() {
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            if (stockItems.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 4;
+                cell.textContent = 'No items in stock yet.';
+                cell.style.textAlign = 'center';
+                return;
+            }
+
+            stockItems.forEach((item, index) => {
+                const row = tableBody.insertRow();
+                
+                if (currentEditingId === item.id) {
+                    // Editing mode
+                    row.insertCell().innerHTML = `<input type="text" value="${item.code}" id="editCode-${item.id}">`;
+                    row.insertCell().innerHTML = `<input type="text" value="${item.count}" id="editCount-${item.id}">`;
+                    const unitCell = row.insertCell();
+                    const unitSelect = document.createElement('select');
+                    unitSelect.id = `editUnit-${item.id}`;
+                    ['count', 'metres'].forEach(u => {
+                        const option = document.createElement('option');
+                        option.value = u;
+                        option.text = u.charAt(0).toUpperCase() + u.slice(1);
+                        if (u === item.unitType) option.selected = true;
+                        unitSelect.appendChild(option);
+                    });
+                    unitCell.appendChild(unitSelect);
+
+                    const actionsCell = row.insertCell();
+                    actionsCell.classList.add('actions-cell');
+                    actionsCell.innerHTML = `
+                        <button onclick="saveEdit(${index})" class="save-btn">Save</button>
+                        <button onclick="cancelEdit()" class="cancel-btn">Cancel</button>
+                    `;
+                } else {
+                    // Display mode
+                    row.insertCell().textContent = item.code;
+                    row.insertCell().textContent = item.count; // Store count as string, display as is
+                    row.insertCell().textContent = item.unitType || 'count';
+
+                    const actionsCell = row.insertCell();
+                    actionsCell.classList.add('actions-cell');
+                    actionsCell.innerHTML = `
+                        <button onclick="startEditing(${index})" class="edit-btn">Edit</button>
+                        <button onclick="deleteItem(${index})" class="delete-btn">Delete</button>
+                    `;
+                }
+            });
+        }
+
+        function addItem() {
+            const code = itemCodeInput.value.trim();
+            const count = itemCountInput.value.trim(); // Keep as string for flexibility (e.g. "5pcs")
+            const unit = itemUnitInput.value;
+
+            // Validate count for non-negativity if it's purely numeric
+            const numericCount = parseInt(count, 10);
+            if (!code || !count) {
+                displayMessage("Code and Count cannot be empty.", "error");
+                return;
+            }
+            if (!isNaN(numericCount) && numericCount < 0) {
+                 displayMessage("Numeric count cannot be negative.", "error");
+                 return;
+            }
+
+
+            // Check if item with same code and unit exists to update count
+            const existingItemIndex = stockItems.findIndex(item => item.code === code && item.unitType === unit);
+
+            if (existingItemIndex !== -1) {
+                // Try to add counts if both are numeric
+                const existingNumericCount = parseInt(stockItems[existingItemIndex].count, 10);
+                if (!isNaN(numericCount) && !isNaN(existingNumericCount)) {
+                    stockItems[existingItemIndex].count = (existingNumericCount + numericCount).toString();
+                    displayMessage(`Updated count for '${code}'.`, "success");
+                } else {
+                    // If one or both are not purely numeric, append or just update as a string.
+                    // This behavior might need refinement based on exact needs for non-numeric counts.
+                    // For now, we'll overwrite if a numeric count is added to a non-numeric one, or append if both are text.
+                    // Simplified: just update the count with the new value if not adding numerics
+                    stockItems[existingItemIndex].count = count; // Or a more complex logic: `stockItems[existingItemIndex].count += ", " + count;`
+                    displayMessage(`Updated (non-numeric) count for '${code}'.`, "success");
+                }
+            } else {
+                 // Add new item with a unique ID (timestamp based for simplicity)
+                stockItems.push({ id: Date.now(), code, count, unitType: unit });
+                displayMessage(`Added item: ${code}.`, "success");
+            }
+            
+            itemCodeInput.value = '';
+            itemCountInput.value = '';
+            itemCodeInput.focus();
+            saveData();
+            renderTable();
+        }
+
+        function startEditing(index) {
+            currentEditingId = stockItems[index].id;
+            renderTable();
+        }
+
+        function cancelEdit() {
+            currentEditingId = null;
+            renderTable();
+        }
+
+        function saveEdit(index) {
+            const item = stockItems[index];
+            const newCode = document.getElementById(`editCode-${item.id}`).value.trim();
+            const newCount = document.getElementById(`editCount-${item.id}`).value.trim();
+            const newUnit = document.getElementById(`editUnit-${item.id}`).value;
+            
+            const numericNewCount = parseInt(newCount, 10);
+            if (!newCode || !newCount) {
+                displayMessage("Code and Count cannot be empty when editing.", "error");
+                return;
+            }
+            if (!isNaN(numericNewCount) && numericNewCount < 0) {
+                 displayMessage("Numeric count cannot be negative.", "error");
+                 return;
+            }
+
+            stockItems[index] = { ...item, code: newCode, count: newCount, unitType: newUnit };
+            currentEditingId = null;
+            saveData();
+            renderTable();
+            displayMessage("Item updated.", "success");
+        }
+
+        function deleteItem(index) {
+            if (confirm(`Are you sure you want to delete '${stockItems[index].code}'?`)) {
+                stockItems.splice(index, 1);
+                saveData();
+                renderTable();
+                displayMessage("Item deleted.", "success");
+            }
+        }
+
+        function exportToXLSX() {
+            if (stockItems.length === 0) {
+                displayMessage("No data to export.", "error");
+                return;
+            }
+            const dataToExport = stockItems.map(item => {
+                // Attempt to parse count for Excel, but keep original if not purely numeric
+                let displayCount = item.count;
+                const numericCount = parseInt(item.count, 10);
+                if (!isNaN(numericCount) && numericCount.toString() === item.count) {
+                    displayCount = numericCount;
+                }
+                return {
+                    Code: item.code,
+                    Count: displayCount,
+                    Unit: item.unitType || 'count'
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Stocktake Data");
+            
+            const sessionName = sessionNameInput.value.trim() || 'default_stocktake';
+            XLSX.writeFile(workbook, `${sessionName}_stocktake.xlsx`);
+            displayMessage("Data exported to XLSX.", "success");
+        }
+
+        // Event listener for Enter key on input fields
+        itemCodeInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                itemCountInput.focus();
+            }
+        });
+
+        itemCountInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addItem();
+            }
+        });
+         sessionNameInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                loadSession();
+            }
+        });
+
+
+        // Initial load
+        window.onload = () => {
+            loadData(); // Load data for the default or last used session
+            if (stockItems.length > 0){
+                 displayMessage(`Session '${sessionNameInput.value}' loaded.`, "success");
+            } else {
+                 displayMessage(`Session '${sessionNameInput.value}' is empty or new.`, "success");
+            }
+        };
+
+    </script>
+</body>
+</html>
